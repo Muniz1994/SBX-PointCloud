@@ -1,0 +1,22 @@
+[configuration]
+entry_symbol = "point_cloud_library_init"
+compatibility_minimum = "4.4"
+
+[libraries]
+; ---- Windows ----------------------------------------------------------------
+windows.debug.x86_64   = "res://addons/point_cloud/bin/libpointcloud.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/point_cloud/bin/libpointcloud.windows.template_release.x86_64.dll"
+windows.editor.x86_64  = "res://addons/point_cloud/bin/libpointcloud.windows.editor.x86_64.dll"
+
+; ---- Linux ------------------------------------------------------------------
+linux.debug.x86_64   = "res://addons/point_cloud/bin/libpointcloud.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/point_cloud/bin/libpointcloud.linux.template_release.x86_64.so"
+linux.editor.x86_64  = "res://addons/point_cloud/bin/libpointcloud.linux.editor.x86_64.so"
+
+; ---- Android ----------------------------------------------------------------
+android.debug.arm64   = "res://addons/point_cloud/bin/libpointcloud.android.template_debug.arm64.so"
+android.release.arm64 = "res://addons/point_cloud/bin/libpointcloud.android.template_release.arm64.so"
+
+; ---- Web (Emscripten / WASM) -----------------------------------------------
+web.debug.wasm32   = "res://addons/point_cloud/bin/libpointcloud.web.template_debug.wasm32.wasm"
+web.release.wasm32 = "res://addons/point_cloud/bin/libpointcloud.web.template_release.wasm32.wasm"

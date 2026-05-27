@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://4a23717n2hyl"]
+
+[ext_resource type="Script" uid="uid://ciux6m7ni5d3x" path="res://test_cloud.gd" id="1_test"]
+
+[node name="TestScene" type="Node3D" unique_id=134035854]
+script = ExtResource("1_test")

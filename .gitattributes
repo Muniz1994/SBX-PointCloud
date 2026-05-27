@@ -1,0 +1,53 @@
+# Default: normalise line endings to LF in the repository
+* text=auto
+
+# GDScript & text assets — always LF
+*.gd        text eol=lf
+*.tscn      text eol=lf
+*.tres      text eol=lf
+*.gdshader  text eol=lf
+*.gdextension text eol=lf
+*.cfg       text eol=lf
+*.ini       text eol=lf
+*.md        text eol=lf
+
+# C/C++ sources — always LF
+*.c         text eol=lf
+*.cpp       text eol=lf
+*.h         text eol=lf
+*.hpp       text eol=lf
+
+# Build system — always LF
+SConstruct  text eol=lf
+SConscript  text eol=lf
+*.py        text eol=lf
+
+# JSON / YAML / TOML
+*.json      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.toml      text eol=lf
+
+# ------------------------------------------------------------------
+# Binary files — never modify line endings or apply diffs
+# ------------------------------------------------------------------
+*.dll       binary
+*.so        binary
+*.dylib     binary
+*.wasm      binary
+*.a         binary
+*.lib       binary
+*.exp       binary
+*.pdb       binary
+*.obj       binary
+
+# Point cloud data
+*.laz       binary
+*.las       binary
+
+# Image assets
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.webp      binary
+*.svg       text eol=lf

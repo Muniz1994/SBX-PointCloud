@@ -1,0 +1,13 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all documented.
+
+[application]
+
+config/name="PointCloud Test"
+config/features=PackedStringArray("4.4", "Forward Plus")
+run/main_scene="res://test_scene.tscn"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

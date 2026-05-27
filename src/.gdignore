@@ -1,0 +1,1 @@
+# Prevent Godot from trying to import C++ sources and build system files
