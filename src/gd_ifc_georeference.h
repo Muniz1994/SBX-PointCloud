@@ -100,10 +100,10 @@ public:
     ///                   rotate the horizontal (Easting/Northing) plane.
     ///   - Scale       : uniform scale factor (0 → treated as 1).
     ///
-    /// Derivation (Godot Y-up, CRS → Godot axis mapping: X→X, Z→Y, -Y→Z):
-    ///   gdX = S*(a*(E-E0) + b*(N-N0))
-    ///   gdY = S*(H - H0)
-    ///   gdZ = S*(b*(E-E0) - a*(N-N0))     [Godot +Z = CRS -Y direction]
+    /// Derivation (Godot Y-up, CRS → Godot: Easting→X, Elevation→Y, −Northing→Z):
+    ///   gdX =  S*( a*(E-E0) + b*(N-N0))
+    ///   gdY =  S*(H - H0)
+    ///   gdZ =  S*( b*(E-E0) - a*(N-N0))   [Godot +Z = −CRS Northing direction]
     Transform3D compute_cloud_transform(Vector3 godot_center) const;
 
 protected:

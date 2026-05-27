@@ -199,7 +199,21 @@ void PointCloudNode::_build_mesh() {
         // Use name-based check so we interoperate with the IFCGeoreference
         // registered by the GDIFC extension, without owning/duplicating it.
         bool is_georef = n != nullptr && n->is_class("IFCGeoreference");
+        UtilityFunctions::print(
+            "[PointCloudNode] georef_node_path='", _georef_node_path,
+            "'  node_found=", (n != nullptr),
+            "  is_IFCGeoreference=", is_georef,
+            "  cloud_center_godot=", _reader->get_center());
+        if (n != nullptr && !is_georef) {
+            UtilityFunctions::print(
+                "[PointCloudNode] node class is '", n->get_class(), "' — not IFCGeoreference");
+        }
         if (is_georef) {
+            UtilityFunctions::print(
+                "[PointCloudNode] Using IFCGeoreference node: '", n->get_name(),
+                "'  E0=", (double)n->call("get_eastings"),
+                "  N0=", (double)n->call("get_northings"),
+                "  H0=", (double)n->call("get_orthogonal_height"));
             // ---- CRS compatibility check -----------------------------------
             // The point cloud must be in the same CRS as the IFCGeoreference.
             // We cannot reproject automatically (no PROJ dependency), so we
@@ -226,13 +240,19 @@ void PointCloudNode::_build_mesh() {
                            "the IFCGeoreference. Assuming they match.");
             }
 
-            set_transform(n->call("compute_cloud_transform", _reader->get_center()));
+            Transform3D t = n->call("compute_cloud_transform", _reader->get_center());
+            UtilityFunctions::print(
+                "[PointCloudNode] → final transform origin=", t.origin);
+            set_transform(t);
             georef_applied = true;
-        } else {
+        } else if (n != nullptr) {
             WARN_PRINT("PointCloudNode: georef_node_path does not point to an IFCGeoreference node.");
         }
+    } else {
+        UtilityFunctions::print("[PointCloudNode] georef_node_path is empty — skipping georef.");
     }
     if (!georef_applied && _auto_center) {
+        UtilityFunctions::print("[PointCloudNode] auto_center fallback: placing at cloud_center=", _reader->get_center());
         set_position(_reader->get_center());
     }
 

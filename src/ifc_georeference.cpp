@@ -2,6 +2,7 @@
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/basis.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 
 using namespace godot;
 
@@ -59,35 +60,50 @@ Transform3D IFCGeoreference::compute_cloud_transform(Vector3 godot_center) const
     double dE = cx - E0;
     double dN = cy - N0;
 
+    // --- debug ---
+    UtilityFunctions::print(
+        "[IFCGeoreference] compute_cloud_transform:"
+        "  godot_center=", godot_center,
+        "  CRS centroid: E=", cx, " N=", cy, " H=", cz,
+        "  IFC origin: E0=", E0, " N0=", N0, " H0=", H0,
+        "  dE=", dE, " dN=", dN,
+        "  a(cos)=", a, " b(sin)=", b, " S=", S);
+
     // --- node origin (translation part of the transform) ---
-    // GDIFC axis convention (matches how GDIFC places IFC models in Godot):
-    //   Godot X = −IFC X = −S*(a*dE + b*dN)
-    //   Godot Y =  IFC Z =  S*(cz − H0)
-    //   Godot Z =  IFC Y =  S*(−b*dE + a*dN)
+    // Standard CRS → Godot axis convention:
+    //   Godot X =  Easting  delta =  S*(a*dE + b*dN)
+    //   Godot Y =  Elevation delta =  S*(cz − H0)
+    //   Godot Z = −Northing delta = −S*(−b*dE + a*dN) = S*(b*dE − a*dN)
     //
-    // This is the inverse of the IFC MapConversion:
-    //   IFC_x =  (1/S)*(a*(E−E0) + b*(N−N0))
-    //   IFC_y =  (1/S)*(−b*(E−E0) + a*(N−N0))
-    //   IFC_z =  (1/S)*(H−H0)
-    // mapped to Godot as: Godot_x = −IFC_x, Godot_y = IFC_z, Godot_z = IFC_y.
-    double origin_x = -S * (a * dE + b * dN);
+    // Derivation: a world point at CRS (E, N, H) with cloud centroid at (Ec,Nc,Hc)
+    // has centroid-relative pos (vx, vy, vz) = (E−Ec, H−Hc, −(N−Nc)).
+    // Applying the MapConversion rotation and offset gives:
+    //   world.x = S*(a*(E−E0) + b*(N−N0)) = S*(a*vx − b*vz) + S*(a*dE + b*dN)
+    //   world.y = S*(H − H0)              =   S*vy           + S*(cz − H0)
+    //   world.z = S*(b*(E−E0) − a*(N−N0)) = S*(b*vx + a*vz) + S*(b*dE − a*dN)
+    // The basis handles the vertex part; origin carries the centroid offset.
+    double origin_x =  S * (a * dE + b * dN);
     double origin_y =  S * (cz - H0);
-    double origin_z =  S * (-b * dE + a * dN);
+    double origin_z =  S * (b * dE - a * dN);
 
     // --- basis (rotation + scale) ---
     // Maps centroid-relative Godot vertex V = (vx, vy, vz) to world:
-    //   world.x = S*a*vx             + (-S*b)*vz
-    //   world.y =       S*vy
-    //   world.z = S*b*vx             + S*a*vz
+    //   world.x = S*a*vx  + (−S*b)*vz   (= S*(a*vx − b*vz))
+    //   world.y =  S*vy
+    //   world.z = S*b*vx  +  S*a*vz     (= S*(b*vx + a*vz))
     //
     // Godot Basis columns are the images of X, Y, Z axes:
     Vector3 col_x((float)(S * a),  0.0f,        (float)(S * b));
     Vector3 col_y(0.0f,            (float)(S),  0.0f);
     Vector3 col_z((float)(-S * b), 0.0f,        (float)(S * a));
 
+    Vector3 origin_v((float)origin_x, (float)origin_y, (float)origin_z);
+    UtilityFunctions::print(
+        "[IFCGeoreference] → computed origin=", origin_v);
+
     return Transform3D(
         Basis(col_x, col_y, col_z),
-        Vector3((float)origin_x, (float)origin_y, (float)origin_z));
+        origin_v);
 }
 
 void IFCGeoreference::_bind_methods() {
