@@ -470,12 +470,12 @@ func _on_add_to_scene_pressed() -> void:
 	node.max_points_per_chunk = int(_spin_max_chunk.value)
 	node.auto_center          = _chk_auto_center.button_pressed
 
-	# Apply georef path if a node is selected.
-	if is_instance_valid(_georef_node) and is_instance_valid(node):
-		node.georef_node_path = node.get_path_to(_georef_node)
-
 	parent.add_child(node)
 	node.owner = editor_interface.get_edited_scene_root()
+
+	# Apply georef path AFTER add_child so get_path_to has a valid scene path.
+	if is_instance_valid(_georef_node):
+		node.georef_node_path = node.get_path_to(_georef_node)
 
 	_active_node = node
 	_destroy_clip_box()

@@ -17,3 +17,4 @@ godot-cpp/gen/
 # Old project/ folder (superseded by repo-root layout)
 project/addons/point_cloud/bin/
 /Examples
+*.obj

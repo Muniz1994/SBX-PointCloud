@@ -13,6 +13,11 @@ linux.debug.x86_64   = "res://addons/point_cloud/bin/libpointcloud.linux.templat
 linux.release.x86_64 = "res://addons/point_cloud/bin/libpointcloud.linux.template_release.x86_64.so"
 linux.editor.x86_64  = "res://addons/point_cloud/bin/libpointcloud.linux.editor.x86_64.so"
 
+; ---- macOS ------------------------------------------------------------------
+macos.debug   = "res://addons/point_cloud/bin/libpointcloud.macos.template_debug.framework"
+macos.release = "res://addons/point_cloud/bin/libpointcloud.macos.template_release.framework"
+macos.editor  = "res://addons/point_cloud/bin/libpointcloud.macos.editor.framework"
+
 ; ---- Android ----------------------------------------------------------------
 android.debug.arm64   = "res://addons/point_cloud/bin/libpointcloud.android.template_debug.arm64.so"
 android.release.arm64 = "res://addons/point_cloud/bin/libpointcloud.android.template_release.arm64.so"

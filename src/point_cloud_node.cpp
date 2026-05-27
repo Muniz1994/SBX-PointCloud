@@ -240,7 +240,47 @@ void PointCloudNode::_build_mesh() {
                            "the IFCGeoreference. Assuming they match.");
             }
 
-            Transform3D t = n->call("compute_cloud_transform", _reader->get_center());
+            // Compute the transform here from the node's properties so we
+            // work with both our own IFCGeoreference and GDIFC's version,
+            // regardless of whether the node exposes compute_cloud_transform().
+            double E0 = (double)n->call("get_eastings");
+            double N0 = (double)n->call("get_northings");
+            double H0 = (double)n->call("get_orthogonal_height");
+            double raw_a = (double)n->call("get_x_axis_abscissa");
+            double raw_b = (double)n->call("get_x_axis_ordinate");
+            double raw_s = (double)n->call("get_scale");
+
+            double a = raw_a, b = raw_b;
+            if (std::abs(a) < 1e-12 && std::abs(b) < 1e-12) {
+                a = 1.0; b = 0.0;
+            } else {
+                double len = std::sqrt(a * a + b * b);
+                if (len > 1e-12) { a /= len; b /= len; }
+            }
+            double S = (raw_s > 1e-12) ? raw_s : 1.0;
+
+            Vector3 gc = _reader->get_center();
+            double cx = (double)gc.x;          // CRS Easting
+            double cy = -(double)gc.z;         // CRS Northing  (godot Z = -northing)
+            double cz = (double)gc.y;          // CRS Elevation (godot Y = elevation)
+
+            double dE = cx - E0;
+            double dN = cy - N0;
+
+            UtilityFunctions::print(
+                "[PointCloudNode] Inline georef: E0=", E0, " N0=", N0, " H0=", H0,
+                "  dE=", dE, " dN=", dN, "  a=", a, " b=", b, " S=", S);
+
+            double ox =  S * (a * dE + b * dN);
+            double oy =  S * (cz - H0);
+            double oz =  S * (b * dE - a * dN);
+
+            Vector3 col_x((float)(S * a),  0.0f,        (float)(S * b));
+            Vector3 col_y(0.0f,            (float)(S),  0.0f);
+            Vector3 col_z((float)(-S * b), 0.0f,        (float)(S * a));
+            Transform3D t(Basis(col_x, col_y, col_z),
+                          Vector3((float)ox, (float)oy, (float)oz));
+
             UtilityFunctions::print(
                 "[PointCloudNode] → final transform origin=", t.origin);
             set_transform(t);
