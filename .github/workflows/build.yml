@@ -47,32 +47,6 @@ jobs:
             target: template_release
             arch: x86_64
 
-          # ── macOS ────────────────────────────────────────────
-          - name: macOS (release, x86_64)
-            runner: macos-latest
-            platform: macos
-            target: template_release
-            arch: x86_64
-
-          - name: macOS (release, arm64)
-            runner: macos-latest
-            platform: macos
-            target: template_release
-            arch: arm64
-
-          # ── Android ──────────────────────────────────────────
-          - name: Android (release, arm64)
-            runner: ubuntu-24.04
-            platform: android
-            target: template_release
-            arch: arm64
-
-          # ── Web (Emscripten) ─────────────────────────────────
-          - name: Web (release, wasm32)
-            runner: ubuntu-24.04
-            platform: web
-            target: template_release
-            arch: wasm32
 
     steps:
       - name: Checkout
@@ -94,31 +68,6 @@ jobs:
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
-      - name: (Android) Install build tools
-        if: matrix.platform == 'android'
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-
-      - name: (Android) Set up NDK
-        if: matrix.platform == 'android'
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r28b
-
-      - name: (Android) Set ANDROID_NDK_ROOT
-        if: matrix.platform == 'android'
-        shell: bash
-        run: echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-
-      - name: (Web) Install build tools
-        if: matrix.platform == 'web'
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-
-      - name: (Web) Set up Emscripten
-        if: matrix.platform == 'web'
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: "3.1.64"
 
       # ── SCons cache ─────────────────────────────────────────
 
@@ -153,7 +102,7 @@ jobs:
           if-no-files-found: error
 
   # ============================================================
-  # package — merge macOS universal, bundle addon, commit to repo
+  # package — bundle addon, commit to repo
   # ============================================================
   package:
     name: Package All Platforms
@@ -172,26 +121,6 @@ jobs:
           path: artifacts
           pattern: pointcloud-*
 
-      # lipo is available via the llvm package on Ubuntu.
-      - name: Install llvm (for lipo)
-        run: sudo apt-get update && sudo apt-get install -y llvm
-
-      # Merge the two macOS .framework binaries into a universal fat binary.
-      - name: Merge macOS universal binary (release)
-        run: |
-          FW="libpointcloud.macos.template_release.framework/libpointcloud.macos.template_release"
-          X86="artifacts/pointcloud-macos-template_release-x86_64/$FW"
-          ARM="artifacts/pointcloud-macos-template_release-arm64/$FW"
-          DEST="artifacts/pointcloud-macos-universal/$FW"
-          if [ -f "$X86" ] && [ -f "$ARM" ]; then
-            mkdir -p "$(dirname "$DEST")"
-            llvm-lipo "$X86" "$ARM" -create -output "$DEST"
-            echo "macOS universal binary created."
-          else
-            echo "Warning: one or both macOS arch builds missing, skipping lipo."
-          fi
-
-      # Assemble the distributable addon folder.
       - name: Collect addon files
         run: |
           mkdir -p package/addons/point_cloud/bin
@@ -201,23 +130,10 @@ jobs:
           cp addons/point_cloud/plugin.cfg               package/addons/point_cloud/
           cp addons/point_cloud/*.gd                     package/addons/point_cloud/
 
-          # Binaries: all non-macOS platforms copied as-is.
+          # Binaries: copy all platform artifacts.
           for dir in artifacts/pointcloud-*/; do
-            plat=$(basename "$dir" | sed 's/^pointcloud-//' | cut -d- -f1)
-            if [ "$plat" != "macos" ]; then
-              cp -r "$dir". package/addons/point_cloud/bin/ 2>/dev/null || true
-            fi
+            cp -r "$dir". package/addons/point_cloud/bin/ 2>/dev/null || true
           done
-
-          # macOS: use the universal binary we built above (if present),
-          # otherwise fall back to the arm64 build.
-          UNIVERSAL="artifacts/pointcloud-macos-universal"
-          ARM64="artifacts/pointcloud-macos-template_release-arm64"
-          if [ -d "$UNIVERSAL" ]; then
-            cp -r "$UNIVERSAL"/. package/addons/point_cloud/bin/
-          elif [ -d "$ARM64" ]; then
-            cp -r "$ARM64"/. package/addons/point_cloud/bin/
-          fi
 
       # On push to main branch: commit the freshly built binaries back to the
       # repo so users can install the addon without building from source.

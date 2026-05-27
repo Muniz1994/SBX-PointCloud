@@ -31,10 +31,11 @@ env.Append(CPPDEFINES=["LAZPERF_VENDORED"])
 lazperf_sources  = Glob("{}/lazperf/*.cpp".format(LAZPERF_ROOT))
 lazperf_sources += Glob("{}/lazperf/detail/*.cpp".format(LAZPERF_ROOT))
 
-# MSVC requires /EHsc to enable standard C++ exception handling (try/catch).
-# laz-perf throws std::exception on corrupt input, so this is required.
+# Enable standard C++ exception handling — laz-perf throws std::exception on corrupt input.
 if env["platform"] == "windows":
-    env.Append(CXXFLAGS=["/EHsc"])
+    env.Append(CXXFLAGS=["/EHsc"])  # MSVC
+elif env["platform"] == "linux":
+    env.Append(CXXFLAGS=["-fexceptions"])  # GCC/Clang
 
 # ---- extension sources -------------------------------------------------------
 env.Append(CPPPATH=["src/", "."])  # "." lets src/ files include root-level headers
