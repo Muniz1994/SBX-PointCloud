@@ -28,6 +28,10 @@ var _spin_point_size:  SpinBox
 var _opt_color_mode:   OptionButton
 var _spin_max_chunk:   SpinBox
 var _chk_auto_center:  CheckButton
+var _spin_vis_begin:   SpinBox
+var _spin_vis_end:     SpinBox
+var _chk_smooth_pts:   CheckButton
+var _spin_soft_edge:   SpinBox
 
 var _lbl_georef_node:  Label
 var _btn_pick_georef:  Button
@@ -171,6 +175,39 @@ func _build_ui() -> void:
 	_chk_auto_center.button_pressed = true
 	_chk_auto_center.toggled.connect(_on_auto_center_toggled)
 	r_grid.add_child(_chk_auto_center)
+
+	r_grid.add_child(_small_label("Visible from:"))
+	_spin_vis_begin = SpinBox.new()
+	_spin_vis_begin.min_value = 0.0
+	_spin_vis_begin.max_value = 1000000.0
+	_spin_vis_begin.step = 1.0
+	_spin_vis_begin.value = 0.0
+	_spin_vis_begin.value_changed.connect(_on_visibility_begin_changed)
+	r_grid.add_child(_spin_vis_begin)
+
+	r_grid.add_child(_small_label("Visible until:"))
+	_spin_vis_end = SpinBox.new()
+	_spin_vis_end.min_value = 0.0
+	_spin_vis_end.max_value = 1000000.0
+	_spin_vis_end.step = 1.0
+	_spin_vis_end.value = 0.0
+	_spin_vis_end.value_changed.connect(_on_visibility_end_changed)
+	r_grid.add_child(_spin_vis_end)
+
+	r_grid.add_child(_small_label("Smooth points:"))
+	_chk_smooth_pts = CheckButton.new()
+	_chk_smooth_pts.button_pressed = true
+	_chk_smooth_pts.toggled.connect(_on_smooth_points_toggled)
+	r_grid.add_child(_chk_smooth_pts)
+
+	r_grid.add_child(_small_label("Edge softness:"))
+	_spin_soft_edge = SpinBox.new()
+	_spin_soft_edge.min_value = 0.01
+	_spin_soft_edge.max_value = 0.49
+	_spin_soft_edge.step = 0.01
+	_spin_soft_edge.value = 0.20
+	_spin_soft_edge.value_changed.connect(_on_smooth_softness_changed)
+	r_grid.add_child(_spin_soft_edge)
 
 	vbox.add_child(HSeparator.new())
 
@@ -469,6 +506,10 @@ func _on_add_to_scene_pressed() -> void:
 	node.color_mode           = _opt_color_mode.selected
 	node.max_points_per_chunk = int(_spin_max_chunk.value)
 	node.auto_center          = _chk_auto_center.button_pressed
+	node.visibility_range_begin = _spin_vis_begin.value
+	node.visibility_range_end = _spin_vis_end.value
+	node.smooth_points_enabled = _chk_smooth_pts.button_pressed
+	node.smooth_edge_softness = _spin_soft_edge.value
 
 	parent.add_child(node)
 	node.owner = editor_interface.get_edited_scene_root()
@@ -558,6 +599,26 @@ func _on_auto_center_toggled(pressed: bool) -> void:
 		_active_node.auto_center = pressed
 
 
+func _on_visibility_begin_changed(value: float) -> void:
+	if is_instance_valid(_active_node):
+		_active_node.visibility_range_begin = value
+
+
+func _on_visibility_end_changed(value: float) -> void:
+	if is_instance_valid(_active_node):
+		_active_node.visibility_range_end = value
+
+
+func _on_smooth_points_toggled(pressed: bool) -> void:
+	if is_instance_valid(_active_node):
+		_active_node.smooth_points_enabled = pressed
+
+
+func _on_smooth_softness_changed(value: float) -> void:
+	if is_instance_valid(_active_node):
+		_active_node.smooth_edge_softness = value
+
+
 func _on_pick_georef_pressed() -> void:
 	if not editor_interface:
 		_status_label.text = "No editor interface."
@@ -606,6 +667,10 @@ func _on_rebuild_pressed() -> void:
 	_active_node.color_mode           = _opt_color_mode.selected
 	_active_node.max_points_per_chunk = int(_spin_max_chunk.value)
 	_active_node.auto_center          = _chk_auto_center.button_pressed
+	_active_node.visibility_range_begin = _spin_vis_begin.value
+	_active_node.visibility_range_end = _spin_vis_end.value
+	_active_node.smooth_points_enabled = _chk_smooth_pts.button_pressed
+	_active_node.smooth_edge_softness = _spin_soft_edge.value
 	# Re-apply georef path.
 	if is_instance_valid(_georef_node):
 		_active_node.georef_node_path = _active_node.get_path_to(_georef_node)

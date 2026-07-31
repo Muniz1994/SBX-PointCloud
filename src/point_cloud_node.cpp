@@ -5,6 +5,10 @@
 
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/base_material3d.hpp>
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/material.hpp>
+#include <godot_cpp/classes/mesh.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/worker_thread_pool.hpp>
@@ -51,7 +55,10 @@ PointCloudNode::PointCloudNode() {
 void   PointCloudNode::set_file_path(const String &p_path) { _file_path = p_path; }
 String PointCloudNode::get_file_path() const               { return _file_path; }
 
-void  PointCloudNode::set_point_size(float p_size)         { _point_size = MAX(0.1f, p_size); }
+void PointCloudNode::set_point_size(float p_size) {
+    _point_size = MAX(0.1f, p_size);
+    _apply_render_settings_to_chunks();
+}
 float PointCloudNode::get_point_size() const               { return _point_size; }
 
 void                   PointCloudNode::set_color_mode(ColorMode p_mode) { _color_mode = p_mode; }
@@ -82,6 +89,50 @@ void PointCloudNode::set_show_chunk_bounds(bool p_show) {
 }
 bool PointCloudNode::get_show_chunk_bounds() const { return _show_chunk_bounds; }
 
+void PointCloudNode::set_visibility_range_begin(float p_distance) {
+    _visibility_range_begin = MAX(0.0f, p_distance);
+    _apply_render_settings_to_chunks();
+}
+
+float PointCloudNode::get_visibility_range_begin() const {
+    return _visibility_range_begin;
+}
+
+void PointCloudNode::set_visibility_range_end(float p_distance) {
+    _visibility_range_end = MAX(0.0f, p_distance);
+    _apply_render_settings_to_chunks();
+}
+
+float PointCloudNode::get_visibility_range_end() const {
+    return _visibility_range_end;
+}
+
+void PointCloudNode::set_smooth_points_enabled(bool p_enabled) {
+    _smooth_points_enabled = p_enabled;
+    _apply_render_settings_to_chunks();
+}
+
+bool PointCloudNode::get_smooth_points_enabled() const {
+    return _smooth_points_enabled;
+}
+
+void PointCloudNode::set_smooth_edge_softness(float p_value) {
+    _smooth_edge_softness = CLAMP(p_value, 0.01f, 0.49f);
+    _apply_render_settings_to_chunks();
+}
+
+float PointCloudNode::get_smooth_edge_softness() const {
+    return _smooth_edge_softness;
+}
+
+void PointCloudNode::set_auto_load_on_ready(bool p_enabled) {
+    _auto_load_on_ready = p_enabled;
+}
+
+bool PointCloudNode::get_auto_load_on_ready() const {
+    return _auto_load_on_ready;
+}
+
 float PointCloudNode::get_build_time_ms() const { return _build_time_ms; }
 int   PointCloudNode::get_chunk_count() const   { return _chunk_count; }
 Array PointCloudNode::get_chunk_aabbs() const   { return _chunk_aabbs; }
@@ -90,6 +141,22 @@ Ref<PointCloudReader> PointCloudNode::get_reader() const   { return _reader; }
 
 int PointCloudNode::get_load_progress() const {
     return _reader.is_valid() ? _reader->get_load_progress() : 0;
+}
+
+void PointCloudNode::_notification(int p_what) {
+    if (p_what == NOTIFICATION_READY) {
+        if (!_auto_load_on_ready || _file_path.is_empty() || _is_loading) {
+            return;
+        }
+        if (_reader.is_valid() && _reader->get_point_count() > 0 && get_child_count() > 0) {
+            return;
+        }
+        if (Engine::get_singleton()->is_editor_hint()) {
+            call_deferred("load_async");
+        } else {
+            call_deferred("load");
+        }
+    }
 }
 
 // ---- loading ---------------------------------------------------------------
@@ -121,12 +188,79 @@ void PointCloudNode::load_async() {
         return;
     }
     _is_loading = true;
+    _has_clip = false;
+    _clip_mask.clear();
     _clear_chunks();
 
     WorkerThreadPool::get_singleton()->add_task(
             callable_mp(this, &PointCloudNode::_load_worker),
             false,
             "PointCloudNode::load_async " + _file_path);
+}
+
+Ref<Material> PointCloudNode::_create_point_material() {
+    if (_smooth_points_enabled) {
+        Ref<ShaderMaterial> shader_material;
+        shader_material.instantiate();
+
+        if (_smooth_point_shader.is_null()) {
+            _smooth_point_shader.instantiate();
+            const String shader_code =
+                "shader_type spatial;\n"
+                "render_mode unshaded, cull_disabled, blend_mix;\n"
+                "uniform float edge_softness : hint_range(0.01, 0.49, 0.01) = 0.20;\n"
+                "uniform float point_size : hint_range(0.1, 64.0, 0.1) = 2.0;\n"
+                "void vertex() {\n"
+                "    POINT_SIZE = max(1.0, point_size);\n"
+                "}\n"
+                "void fragment() {\n"
+                "    vec2 p = POINT_COORD * 2.0 - vec2(1.0);\n"
+                "    float r = dot(p, p);\n"
+                "    if (r > 1.0) {\n"
+                "        discard;\n"
+                "    }\n"
+                "    float inner = 1.0 - edge_softness;\n"
+                "    float alpha = 1.0 - smoothstep(inner * inner, 1.0, r);\n"
+                "    ALBEDO = COLOR.rgb;\n"
+                "    ALPHA = alpha;\n"
+                "}\n";
+            _smooth_point_shader->set_code(shader_code);
+        }
+
+        shader_material->set_shader(_smooth_point_shader);
+        shader_material->set_shader_parameter("edge_softness", _smooth_edge_softness);
+        shader_material->set_shader_parameter("point_size", _point_size);
+        return shader_material;
+    }
+
+    Ref<StandardMaterial3D> mat;
+    mat.instantiate();
+    mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+    mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+    mat->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, true);
+    mat->set_flag(BaseMaterial3D::FLAG_USE_POINT_SIZE, true);
+    mat->set_point_size(_point_size);
+    return mat;
+}
+
+void PointCloudNode::_apply_render_settings_to_chunks() {
+    Ref<Material> point_material = _create_point_material();
+
+    for (int i = 0; i < get_child_count(); i++) {
+        MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(get_child(i));
+        if (!mi || mi->has_meta("__pc_debug")) {
+            continue;
+        }
+
+        mi->set_visibility_range_begin(_visibility_range_begin);
+        mi->set_visibility_range_end(_visibility_range_end);
+
+        Ref<Mesh> child_mesh = mi->get_mesh();
+        Ref<ArrayMesh> array_mesh = child_mesh;
+        if (array_mesh.is_valid() && array_mesh->get_surface_count() > 0) {
+            array_mesh->surface_set_material(0, point_material);
+        }
+    }
 }
 
 // ---- internal: worker thread -----------------------------------------------
@@ -417,19 +551,13 @@ void PointCloudNode::_build_mesh() {
         mesh.instantiate();
         mesh->add_surface_from_arrays(Mesh::PRIMITIVE_POINTS, arrays);
 
-        // Unshaded material with vertex colours and configurable point size
-        Ref<StandardMaterial3D> mat;
-        mat.instantiate();
-        mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-        mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
-        mat->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, true);  // scanner RGB is sRGB; linearise before render
-        mat->set_flag(BaseMaterial3D::FLAG_USE_POINT_SIZE, true);
-        mat->set_point_size(_point_size);
-        mesh->surface_set_material(0, mat);
+        mesh->surface_set_material(0, _create_point_material());
 
         // Add MeshInstance3D child — one per spatial cell for frustum culling
         MeshInstance3D *mi = memnew(MeshInstance3D);
         mi->set_mesh(mesh);
+        mi->set_visibility_range_begin(_visibility_range_begin);
+        mi->set_visibility_range_end(_visibility_range_end);
         add_child(mi);
     }
 
@@ -569,6 +697,34 @@ void PointCloudNode::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_show_chunk_bounds"),          &PointCloudNode::get_show_chunk_bounds);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_chunk_bounds"),
                  "set_show_chunk_bounds", "get_show_chunk_bounds");
+
+    ClassDB::bind_method(D_METHOD("set_visibility_range_begin", "distance"), &PointCloudNode::set_visibility_range_begin);
+    ClassDB::bind_method(D_METHOD("get_visibility_range_begin"),               &PointCloudNode::get_visibility_range_begin);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "visibility_range_begin",
+                              PROPERTY_HINT_RANGE, "0.0,1000000.0,1.0"),
+                 "set_visibility_range_begin", "get_visibility_range_begin");
+
+    ClassDB::bind_method(D_METHOD("set_visibility_range_end", "distance"), &PointCloudNode::set_visibility_range_end);
+    ClassDB::bind_method(D_METHOD("get_visibility_range_end"),               &PointCloudNode::get_visibility_range_end);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "visibility_range_end",
+                              PROPERTY_HINT_RANGE, "0.0,1000000.0,1.0"),
+                 "set_visibility_range_end", "get_visibility_range_end");
+
+    ClassDB::bind_method(D_METHOD("set_smooth_points_enabled", "enabled"), &PointCloudNode::set_smooth_points_enabled);
+    ClassDB::bind_method(D_METHOD("get_smooth_points_enabled"),              &PointCloudNode::get_smooth_points_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "smooth_points_enabled"),
+                 "set_smooth_points_enabled", "get_smooth_points_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_smooth_edge_softness", "value"), &PointCloudNode::set_smooth_edge_softness);
+    ClassDB::bind_method(D_METHOD("get_smooth_edge_softness"),            &PointCloudNode::get_smooth_edge_softness);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "smooth_edge_softness",
+                              PROPERTY_HINT_RANGE, "0.01,0.49,0.01"),
+                 "set_smooth_edge_softness", "get_smooth_edge_softness");
+
+    ClassDB::bind_method(D_METHOD("set_auto_load_on_ready", "enabled"), &PointCloudNode::set_auto_load_on_ready);
+    ClassDB::bind_method(D_METHOD("get_auto_load_on_ready"),              &PointCloudNode::get_auto_load_on_ready);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "auto_load_on_ready"),
+                 "set_auto_load_on_ready", "get_auto_load_on_ready");
 
     // Methods
     ClassDB::bind_method(D_METHOD("load"),             &PointCloudNode::load);

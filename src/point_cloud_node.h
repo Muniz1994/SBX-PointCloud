@@ -6,6 +6,7 @@
 
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/shader.hpp>
 #include <godot_cpp/variant/node_path.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
@@ -70,6 +71,21 @@ public:
     void    set_show_chunk_bounds(bool p_show);
     bool    get_show_chunk_bounds() const;
 
+    void  set_visibility_range_begin(float p_distance);
+    float get_visibility_range_begin() const;
+
+    void  set_visibility_range_end(float p_distance);
+    float get_visibility_range_end() const;
+
+    void  set_smooth_points_enabled(bool p_enabled);
+    bool  get_smooth_points_enabled() const;
+
+    void  set_smooth_edge_softness(float p_value);
+    float get_smooth_edge_softness() const;
+
+    void set_auto_load_on_ready(bool p_enabled);
+    bool get_auto_load_on_ready() const;
+
     // ---- loading -----------------------------------------------------------
     void load();        ///< Synchronous load + mesh build (blocks main thread)
     void load_async();  ///< Async load via WorkerThreadPool
@@ -91,12 +107,15 @@ public:
 
 protected:
     static void _bind_methods();
+    void _notification(int p_what);
 
 private:
     // ---- internal helpers --------------------------------------------------
     void _build_mesh();
     void _clear_chunks();
     void _update_chunk_bound_visuals();
+    void _apply_render_settings_to_chunks();
+    Ref<Material> _create_point_material();
     void _load_worker();          // runs on worker thread
     void _on_load_done();         // runs on main thread (deferred)
     void _on_load_failed(const String &p_error); // runs on main thread (deferred)
@@ -111,6 +130,12 @@ private:
     bool                  _is_loading           = false;
     bool                  _show_chunk_bounds    = false;
     bool                  _has_clip             = false;
+    bool                  _smooth_points_enabled = true;
+    bool                  _auto_load_on_ready    = true;
+
+    float                 _visibility_range_begin = 0.0f;
+    float                 _visibility_range_end   = 0.0f;
+    float                 _smooth_edge_softness   = 0.20f;
 
     float                 _build_time_ms        = 0.0f;
     int                   _chunk_count          = 0;
@@ -119,6 +144,7 @@ private:
     std::vector<uint8_t>  _clip_mask;   ///< 1 = keep, 0 = discard; size == point_count when active
 
     Ref<PointCloudReader> _reader;
+    Ref<Shader>           _smooth_point_shader;
 };
 
 VARIANT_ENUM_CAST(PointCloudNode::ColorMode)

@@ -7,12 +7,16 @@ Usage:
     scons target=template_release platform=linux arch=x86_64
     scons target=template_debug platform=android arch=arm64
     scons target=template_debug platform=web
+    scons local=yes                              # output binary to project/addons/point_cloud/bin
 """
 import os
 
 # ---- project settings --------------------------------------------------------
 LIBNAME = "libpointcloud"
-BINDIR  = "addons/point_cloud/bin"  # addons/ lives at repo root
+LOCAL_BUILD = str(ARGUMENTS.get("local", "no")).lower() in ("1", "true", "yes", "on")
+ARGUMENTS.pop("local", None)
+BINDIR  = "project/addons/point_cloud/bin" if LOCAL_BUILD else "addons/point_cloud/bin"
+os.makedirs(BINDIR, exist_ok=True)
 
 # ---- godot-cpp ---------------------------------------------------------------
 # SConscript returns the configured Environment after building godot-cpp.
